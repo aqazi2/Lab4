@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chicago Choropleth Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <style>
+        /* Optional: adjust the values below to change the appearance of the legend color boxes */
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+
+        /* Full-screen map styles */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+        }
+
+        #map {
+            min-height: 95%;
+        }
+
+        /* Bold title style */
+        .map-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        /* Styling for the legend title */
+        .legend-title {
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* Set white background for legends */
+        .legend, .legend.park-legend {
+            background-color: white;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        /* Set green background for "Chicago Parks" legend */
+        .legend.park-legend {
+            background-color: white;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+<div class="map-title">Population Density in 2010 and Green Areas of Chicago</div>
+<div id="map"></div>
+
+<script type="text/javascript" src="data.js"></script>
+<script type="text/javascript" src="parkdata.js"></script>
+<script type="text/javascript" src="data0.js"></script>
+
+<script type="text/javascript">
+    var map = L.map('map', {
+        center: [41.8781, -87.6298], // Chicago coordinates
+        zoom: 10.2
+    });
+
+    // Base Layers
+    var openStreetMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+
+    var imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+    });
+
+var cartoDBDarkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: 'Map tiles by <a href="https://www.carto.com/">CartoDB</a>, ' +
+        'under <a href="https://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. ' +
+        'Data by <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, ' +
+        'under <a href="https://www.openstreetmap.org/copyright">ODbL</a>.'
+});
+
+    // GeoJSON Data Layer
+    function getColor(value) {
+        return value > 8257 ? '#045a8d' :
+            value > 5368 ? '#2b8cbe' :
+                value > 3852 ? '#74a9cf' :
+                    value > 1847 ? '#bdc9e1' :
+                        value > 369 ? '#f1eef6' :
+                            '#f2f0f7';
+    }
+
+    function style(feature) {
+        return {
+            fillColor: getColor(feature.properties.PopDen),
+            weight: 2,
+            opacity: 1,
+            color: 'gray',
+            fillOpacity: 0.9,
+            dashArray: '3'
+        };
+    }
+
+    function highlightFeature(e) {
+        var feature = e.target;
+        feature.setStyle({
+            weight: 5,
+            color: 'white',
+            fillOpacity: 0.9
+        });
+        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+            feature.bringToFront();
+        }
+    }
+
+    function resetHighlight(e) {
+        geojson.resetStyle(e.target);
+    }
+
+    function onEachFeature(feature, layer) {
+        layer.on({
+            mouseover: highlightFeature,
+            mouseout: resetHighlight
+        });
+
+        var tooltipContent = '<b>' + feature.properties.community + '</b><br>' +
+            'Population Density: ' + feature.properties.PopDen + ' people/square mile';
+        layer.bindTooltip(tooltipContent);
+    }
+
+    var geojson = L.geoJson(data, {
+        style: style,
+        onEachFeature: onEachFeature
+    });
+
+    // Load the park data GeoJSON
+    var parkData = L.geoJson(parkData, {
+        style: {
+            fillColor: 'green', // You can adjust the fill color for parks
+            weight: 1,
+            opacity: 1,
+            color: '#f1eef6', // You can adjust the border color for parks
+            fillOpacity: 0.7
+        },
+        onEachFeature: function (feature, layer) {
+            // You can customize popup content for each park feature here
+            layer.bindPopup('Park Name: ' + feature.properties.name);
+        }
+    });
+
+    // Load the new data0.js GeoJSON
+    var data0Layer = L.geoJson(data0, {
+        style: {
+            fillColor: 'green', // Customize the fill color for this layer
+            weight: 1,
+            opacity: 1,
+            color: 'green', // Customize the border color for this layer
+            fillOpacity: 0.8
+        },
+        onEachFeature: function (feature, layer) {
+            // Customize the popup content for each feature in this layer
+            layer.bindPopup('Feature Name: ' + feature.properties.name);
+        }
+    });
+
+    // Create a layer group for the new layer
+    var data0Group = L.layerGroup([data0Layer]);
+
+    // Overlay Layers (excluding "Terrain Map")
+    var overlayMaps = {
+        "Chicago Choropleth": geojson,
+		"carto": cartoDBDarkLayer,
+        "Satellite Imagery": imagery,
+        "OpenStreetMap": openStreetMapLayer,
+        "Chicago Parks": data0Group
+    };
+
+    // Add Layer Control (without "Terrain Map") and set all layers to be checked
+    L.control.layers(null, overlayMaps, { position: 'topright' }).addTo(map);
+    map.addLayer(geojson);
+    map.addLayer(data0Group);
+	map.addLayer(imagery);
+
+    // Create legends
+    var legend = L.control({ position: 'bottomright' });
+
+    legend.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'legend'),
+            grades = [369, 1847, 3852, 5368, 8257, 12557];
+
+        div.innerHTML = '<b>Population Density <br>  <br></b>';
+
+        for (var i = 0; i < grades.length; i++) {
+            div.innerHTML +=
+                '<i style="background:' + getColor(grades[i] + 1) + '"></i>' +
+                grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+        }
+
+        return div;
+    };
+
+    var parkLegend = L.control({ position: 'topright' });
+
+    parkLegend.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'legend park-legend');
+
+        div.innerHTML = '<div class="legend-title"></div>';
+        div.innerHTML += '<i style="background:Green; color:white;"></i> Chicago parks';
+
+        return div;
+    };
+
+    // Initially, add both legends
+    legend.addTo(map);
+    parkLegend.addTo(map);
+
+    // Event handlers for legend and parkLegend
+    map.on('overlayremove', function(eventLayer) {
+        if (eventLayer.name === 'Chicago Parks') {
+            map.removeControl(parkLegend);
+        }
+        if (eventLayer.name === 'Chicago Choropleth') {
+            map.removeControl(legend);
+        }
+    });
+
+    map.on('overlayadd', function(eventLayer) {
+        if (eventLayer.name === 'Chicago Parks') {
+            parkLegend.addTo(map);
+        }
+        if (eventLayer.name === 'Chicago Choropleth') {
+            legend.addTo(map);
+        }
+    });
+
+</script>
+</body>
+</html>
